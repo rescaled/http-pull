@@ -1,0 +1,15 @@
+[Unit]
+Description=http-pull - HTTP file puller
+Documentation=https://github.com/http-pull/http-pull
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/http-pull --config /etc/http-pull/config.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

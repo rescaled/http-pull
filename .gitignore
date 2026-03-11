@@ -1,0 +1,20 @@
+# Binaries
+./http-pull
+*.exe
+
+# Test binary
+*.test
+
+# Coverage
+*.out
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# AI Tools
+.claude/
+CLAUDE.md

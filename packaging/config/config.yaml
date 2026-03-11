@@ -1,0 +1,17 @@
+log:
+  level: INFO
+  target: file
+  file: /var/log/http-pull/http-pull.log
+
+# Add targets below. The service will not start without at least one target.
+# targets:
+#   - name: example
+#     url: https://example.com/data.txt
+#     interval: 30s
+#     destination: /tmp/data.txt
+#     hooks:
+#       - type: shell
+#         command: echo "downloaded"
+#         on:
+#           - success
+targets: []
