@@ -1,88 +1,67 @@
 # http-pull
-
-A lightweight Go service that periodically downloads files via HTTP(S), stores them locally, and runs configurable hooks afterward.
+Simple service that pulls files via http(s) in configurable intervals, stores them on your system and executes hooks after each successful and/or failed download. Configurable via YAML.
 
 ## Features
-
-- **Scheduled HTTP pulls** — download files at configurable intervals per target
-- **Atomic writes** — files are written to a temp file first, then renamed into place
-- **Built-in hooks** — run shell commands or move files after each download
-- **Extensible hook interface** — third-party hooks via a public Go interface in `pkg/hook`
-- **Live reload** — send `SIGHUP` to re-read configuration without restarting
-- **Graceful shutdown** — in-flight downloads and hooks complete before exit
-- **Structured logging** — JSON logs via `slog`, configurable level and output target
+- **Easily Configurable** - Configure which files to pull in which interval and what to do with them in a single configuration file
+- **Sub-Minute Intervals** - Pull files as often (or as infrequent) as you need to
+- **Atomic Writes** - Files are downloaded into a temporary file, first, then atomically moved into place (`inotify`-compatible)
+- **Hooks** - Configure hooks to be executed after a pull was completed successfully or after it failed
+- **Extensible** - Easily develop own hooks by satisfying a simple Go interface with just one method
 
 ## Installation
+You can download a [pre-built binary](https://github.com/rescaled/http-pull/releases) for macOS, Linux or Windows from GitHub. 
 
-Requires Go 1.24+.
+Ubuntu or Debian users can also install `http-pull` as package.
+
+## Build
+Building this project requires Go 1.24+ to be installed on your system.
 
 ```sh
+git clone git@github.com:rescaled/http-pull.git
+cd http-pull
 go build -o http-pull ./cmd/http-pull/
 ```
 
 ## Usage
+Running the service is as easy as pointing to a configuration file. By default, `http-pull` assumes that the configuration file is stored at `/etc/http-pull/config.yaml`. It's recommended to run the software in the background or as service with e.g. systemd. You can find a [systemd service template](https://github.com/rescaled/http-pull/blob/main/packaging/systemd/http-pull.service) in the `packaging/` directory that is being used to build the .deb packages for Ubuntu and Debian and adapt it to your needs, if necessary.
 
 ```sh
 http-pull --config /path/to/config.yaml
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--config` | `/etc/http-pull/config.yaml` | Path to the configuration file |
-
-### Signals
-
-| Signal | Behaviour |
-|--------|-----------|
-| `SIGHUP` | Reload configuration and apply changes live |
-| `SIGINT` / `SIGTERM` | Graceful shutdown (30s timeout for in-flight work) |
-
 ## Configuration
 
 ```yaml
 log:
-  level: INFO           # DEBUG, INFO, WARN, or ERROR
-  target: stdout        # stdout or file
-  file: /var/log/http-pull.log  # only used when target is "file"
+  level: INFO # DEBUG, INFO, WARN, or ERROR
+  target: stdout # stdout or file
+  file: /var/log/http-pull.log # only used when target is "file"
 
 targets:
-  - name: example
-    url: https://example.com/data.txt
-    interval: 30s
-    destination: /tmp/data.txt
-    http_request:           # optional
-      method: GET           # default: GET
-      headers:              # optional
+  - name: example # unique target name
+    url: https://example.com/data.txt # URL to download from
+    interval: 30s # interval as Go-compatible expression
+    destination: /tmp/data.txt # final destination for the downloaded file
+    http_request: # optional
+      method: GET # default: GET
+      headers: # optional
         - name: Authorization
           value: Bearer my-token
-      basic_auth:           # optional
-        username: user
-        password: pass
-      follow_redirects: true  # default: true
-    hooks:                  # optional
-      - type: shell
+      basic_auth: # optional
+        username: username
+        password: password
+      follow_redirects: true # default: true
+    hooks: # optional
+      - type: shell # `shell` or `move`
         command: echo "Downloaded successfully"
-        on:                 # default: [success]
+        on: # default: [success]
           - success
           - failure
-      - type: move
+      - type: move 
         destination: /opt/data/data.txt
 ```
 
-### Defaults
-
-| Setting | Default |
-|---------|---------|
-| `log.level` | `INFO` |
-| `log.target` | `stdout` |
-| `http_request.method` | `GET` |
-| `http_request.follow_redirects` | `true` |
-| `hooks[].on` | `["success"]` |
-| `User-Agent` header | `http-pull/1.0` (overridable via `headers`) |
-
 ## Hooks
-
-### Built-in hooks
 
 **`shell`** — Executes a command via `/bin/sh -c` after the pull completes.
 
@@ -100,16 +79,8 @@ targets:
   on: [success]
 ```
 
-### Hook triggers
-
-| Value | Description |
-|-------|-------------|
-| `success` | Run when the download succeeds (HTTP status < 400) |
-| `failure` | Run when the download fails (HTTP status >= 400 or network error) |
-
-### Writing custom hooks
-
-The hook interface is in `pkg/hook` so it can be imported by external projects:
+## Custom Hooks
+The hook interface is in `pkg/hook` so it can be imported by external projects. Writing your own hook is as easy as satisfying the interface's single method.
 
 ```go
 import "http-pull/pkg/hook"
@@ -124,19 +95,7 @@ func (h *MyHook) Execute(ctx context.Context, result hook.Result) error {
 }
 ```
 
-## Project structure
-
-```
-cmd/http-pull/          Entry point and signal handling
-internal/
-  config/               Configuration loading and validation (Viper)
-  logging/              Structured logging setup (slog)
-  hook/                 Built-in hook implementations and registry
-  puller/               HTTP download with atomic file writes
-  runner/               Worker orchestration, reload, and graceful shutdown
-pkg/hook/               Public hook interface for third-party extensions
-```
+We happily accept pull requests for new hooks to extend the possibilities `http-pull` offers its users.
 
 ## License
-
-See [LICENSE](LICENSE) for details.
+MIT License
