@@ -69,5 +69,10 @@ func copyFile(src, dst string) error {
 		return err
 	}
 
-	return out.Close()
+	if err := out.Close(); err != nil {
+		return err
+	}
+
+	// Preserve file ownership across the copy.
+	return preserveOwnership(info, dst)
 }

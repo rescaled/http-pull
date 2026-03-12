@@ -15,9 +15,18 @@ import (
 	"http-pull/internal/runner"
 )
 
+// version is set at build time via ldflags.
+var version = "dev"
+
 func main() {
 	configPath := pflag.String("config", "/etc/http-pull/config.yaml", "path to configuration file")
+	showVersion := pflag.Bool("version", false, "print version and exit")
 	pflag.Parse()
+
+	if *showVersion {
+		fmt.Println("http-pull", version)
+		return
+	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {

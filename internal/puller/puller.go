@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 
 	"http-pull/internal/config"
 )
@@ -110,10 +112,83 @@ func (p *Puller) atomicWrite(r io.Reader) error {
 		return fmt.Errorf("closing temp file: %w", err)
 	}
 
+	if err := p.applyFilePermissions(tmpPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("applying file permissions: %w", err)
+	}
+
 	if err := os.Rename(tmpPath, p.target.Destination); err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("renaming temp file: %w", err)
 	}
 
 	return nil
+}
+
+func (p *Puller) applyFilePermissions(path string) error {
+	fc := p.target.File
+	if fc == nil {
+		return nil
+	}
+
+	if fc.Mode != "" {
+		parsed, err := strconv.ParseUint(fc.Mode, 8, 32)
+		if err != nil {
+			return fmt.Errorf("parsing mode %q: %w", fc.Mode, err)
+		}
+		if err := os.Chmod(path, os.FileMode(parsed)); err != nil {
+			return fmt.Errorf("chmod: %w", err)
+		}
+		p.logger.Debug("applied file mode", "path", path, "mode", fc.Mode)
+	}
+
+	if fc.Owner != "" || fc.Group != "" {
+		uid := -1
+		gid := -1
+
+		if fc.Owner != "" {
+			id, err := resolveUID(fc.Owner)
+			if err != nil {
+				return fmt.Errorf("resolving owner %q: %w", fc.Owner, err)
+			}
+			uid = id
+		}
+
+		if fc.Group != "" {
+			id, err := resolveGID(fc.Group)
+			if err != nil {
+				return fmt.Errorf("resolving group %q: %w", fc.Group, err)
+			}
+			gid = id
+		}
+
+		if err := os.Chown(path, uid, gid); err != nil {
+			return fmt.Errorf("chown: %w", err)
+		}
+		p.logger.Debug("applied file ownership", "path", path, "uid", uid, "gid", gid)
+	}
+
+	return nil
+}
+
+func resolveUID(name string) (int, error) {
+	if id, err := strconv.Atoi(name); err == nil {
+		return id, nil
+	}
+	u, err := user.Lookup(name)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(u.Uid)
+}
+
+func resolveGID(name string) (int, error) {
+	if id, err := strconv.Atoi(name); err == nil {
+		return id, nil
+	}
+	g, err := user.LookupGroup(name)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(g.Gid)
 }

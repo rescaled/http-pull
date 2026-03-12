@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,7 +30,15 @@ type TargetConfig struct {
 	Interval    time.Duration      `mapstructure:"interval"`
 	Destination string             `mapstructure:"destination"`
 	HTTPRequest *HTTPRequestConfig `mapstructure:"http_request"`
+	File        *FileConfig        `mapstructure:"file"`
 	Hooks       []HookConfig       `mapstructure:"hooks"`
+}
+
+// FileConfig holds optional file ownership and permission settings.
+type FileConfig struct {
+	Owner string `mapstructure:"owner"`
+	Group string `mapstructure:"group"`
+	Mode  string `mapstructure:"mode"`
 }
 
 // HTTPRequestConfig holds optional HTTP request settings.
@@ -152,6 +161,12 @@ func validate(cfg *Config) error {
 		}
 		if t.Destination == "" {
 			return fmt.Errorf("target %q: destination is required", t.Name)
+		}
+
+		if t.File != nil && t.File.Mode != "" {
+			if _, err := strconv.ParseUint(t.File.Mode, 8, 32); err != nil {
+				return fmt.Errorf("target %q: invalid file mode %q: must be an octal string (e.g. \"0644\")", t.Name, t.File.Mode)
+			}
 		}
 
 		for j, h := range t.Hooks {
